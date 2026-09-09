@@ -7,7 +7,7 @@ const read = (path) => readFile(new URL(path, root), "utf8");
 
 test("page uses browser-native modules", async () => {
   const html = await read("index.html");
-  assert.match(html, /<script type="module" src="app\.js"><\/script>/);
+  assert.match(html, /<script type="module" src="app\.js\?v=[a-z0-9]+"><\/script>/);
   assert.doesNotMatch(html, /OPENAI_API_KEY|service.role/i);
 });
 
