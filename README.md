@@ -79,7 +79,7 @@ The unconfigured app allows UI exploration, document selection and ordering, pro
    supabase secrets set RESEND_FROM_EMAIL="Inkless <sign@your-domain.com>"
    ```
 
-   If automatic delivery is unavailable, Inkless creates a separate private link for every signer and provides both a prepared `mailto:` action and a copy button. One link is never shared among multiple signers because each token identifies a specific signing party.
+   If automatic delivery is unavailable, Inkless creates a separate private link for every signer and provides a copy button. The sender can share it through any channel. One link is never shared among multiple signers because each token identifies a specific signing party, and signing still requires a matching verified Supabase account.
 
 7. Add both URLs to the Supabase Auth redirect allow-list:
 

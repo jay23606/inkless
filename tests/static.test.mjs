@@ -135,13 +135,13 @@ test("AI drafts can use multiple private example documents", async () => {
   assert.match(ai, /attached examples only as drafting references/);
 });
 
-test("email remains required while invitations support per-signer mailto fallback", async () => {
+test("email remains required while invitations provide private copyable links", async () => {
   const html = await read("index.html");
   const app = await read("app.js");
   const envelope = await read("supabase/functions/ink-envelope/index.ts");
   assert.match(html, /class="person-email" type="email"/);
-  assert.match(app, /mailto:/);
-  assert.match(app, /encodeURIComponent\(invite\.email\)/);
+  assert.match(app, /Copy private link/);
+  assert.doesNotMatch(app, /mailto:/);
   assert.match(envelope, /randomToken\(\)/);
   assert.match(envelope, /invite_token_hash/);
 });
