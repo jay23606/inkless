@@ -121,3 +121,16 @@ test("drafting is gated on server-side OpenAI readiness with no generic fallback
   assert.doesNotMatch(app, /function defaultDraft/);
   assert.match(ai, /body\.action === "status"/);
 });
+
+test("AI drafts can use multiple private example documents", async () => {
+  const html = await read("index.html");
+  const app = await read("app.js");
+  const ai = await read("supabase/functions/ink-ai-document/index.ts");
+  assert.match(html, /id="referenceFileInput"[^>]*multiple/);
+  assert.match(html, /not as signing attachments/);
+  assert.match(app, /state\.referenceFiles/);
+  assert.match(app, /references\.push/);
+  assert.match(ai, /body\.references/);
+  assert.match(ai, /type: "input_file"/);
+  assert.match(ai, /attached examples only as drafting references/);
+});

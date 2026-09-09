@@ -8,6 +8,7 @@ import { clearDemoDocuments, demoDocuments, demoProfile, invokeFunction, invokeP
   const state = {
     mode: "draft",
     files: [],
+    referenceFiles: [],
     sourceFiles: [],
     profile: demoProfile(),
     documents: demoDocuments(),
@@ -215,7 +216,14 @@ import { clearDemoDocuments, demoDocuments, demoProfile, invokeFunction, invokeP
     if (!state.aiReady) { toast("AI drafting must be connected before creating a draft."); return; }
     const button = $("#createDraft"); button.disabled = true; button.textContent = "Drafting…";
     try {
-      const draft = await invokeAI("draft", { intent, parties: [state.profile] });
+      const references = [];
+      for (const [index, file] of state.referenceFiles.entries()) {
+        button.textContent = `Uploading example ${index + 1} of ${state.referenceFiles.length}…`;
+        const uploaded = await uploadOriginal(file);
+        references.push({ filename: uploaded.filename, fileUrl: uploaded.url });
+      }
+      button.textContent = "Drafting with AI…";
+      const draft = await invokeAI("draft", { intent, parties: [state.profile], references });
       $("#documentTitle").value = draft.title;
       $("#documentPaper").innerHTML = draft.html;
       state.fields = Array.isArray(draft.fields) ? draft.fields : [];
@@ -224,6 +232,26 @@ import { clearDemoDocuments, demoDocuments, demoProfile, invokeFunction, invokeP
       showEditor(); toast("AI draft created");
     } catch (error) { toast(error.message || "Could not create the draft."); }
     finally { button.disabled = !state.aiReady; button.innerHTML = 'Create draft <span>→</span>'; }
+  }
+  function chooseReferenceFiles(files) {
+    const allowed = ["application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "text/plain"];
+    for (const file of [...files]) {
+      if (state.referenceFiles.length >= 5) { toast("You can add up to five example documents."); break; }
+      if (!allowed.includes(file.type) && !/\.(pdf|docx|txt)$/i.test(file.name)) { toast(`${file.name} is not a PDF, DOCX, or TXT file.`); continue; }
+      if (file.size > 10 * 1024 * 1024) { toast(`${file.name} is larger than 10 MB.`); continue; }
+      if (!state.referenceFiles.some(item => item.name === file.name && item.size === file.size)) state.referenceFiles.push(file);
+    }
+    renderReferenceFiles();
+  }
+  function renderReferenceFiles() {
+    const list = $("#referenceFileList"); list.innerHTML = "";
+    state.referenceFiles.forEach((file, index) => {
+      const item = document.createElement("span"); item.className = "reference-file";
+      const name = document.createElement("span"); name.textContent = file.name;
+      const remove = document.createElement("button"); remove.type = "button"; remove.setAttribute("aria-label", `Remove ${file.name}`); remove.textContent = "×";
+      remove.addEventListener("click", () => { state.referenceFiles.splice(index, 1); renderReferenceFiles(); });
+      item.append(name, remove); list.append(item);
+    });
   }
   async function reviseDraft() {
     const instruction = $("#revisionPrompt").value.trim();
@@ -414,6 +442,8 @@ import { clearDemoDocuments, demoDocuments, demoProfile, invokeFunction, invokeP
   $("#agreementCategory").addEventListener("change", event => populateAgreementTypes(event.target.value));
   $("#agreementType").addEventListener("change", event => applyTemplate(event.target.value));
   $("#createDraft").addEventListener("click", createDraft); $("#backButton").addEventListener("click", showHome); $("#addPerson").addEventListener("click", () => addPerson()); $("#reviseButton").addEventListener("click", reviseDraft);
+  $("#chooseReferenceFiles").addEventListener("click", () => $("#referenceFileInput").click());
+  $("#referenceFileInput").addEventListener("change", event => { chooseReferenceFiles(event.target.files); event.target.value = ""; });
   $("#onlyMe").addEventListener("change", event => setOnlyMe(event.target.checked));
   $("#profileButton").addEventListener("click", () => $("#profileDialog").showModal()); $("#saveProfile").addEventListener("click", saveProfile);
   $("#signInButton").addEventListener("click", sendSignInLink);

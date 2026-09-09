@@ -51,6 +51,14 @@ textarea:focus, input:focus { border-color: #729b87; box-shadow: 0 0 0 3px rgba(
 .template-selects select:disabled { color: #9ca49f; background: #f0f2ef; }
 .suggestions { display: flex; flex-wrap: wrap; gap: 8px; margin: 11px 0 20px; }
 .suggestions button { background: var(--wash); border: 1px solid var(--line); border-radius: 99px; padding: 6px 11px; cursor: pointer; color: #52605a; font-size: 12px; }
+.reference-documents { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center; margin: 0 0 20px; padding: 13px 14px; border: 1px dashed #b7c5bc; border-radius: 10px; background: #fbfcfa; }
+.reference-documents strong, .reference-documents span { display: block; }
+.reference-documents > div > span { color: var(--muted); font-size: 11px; }
+.reference-documents > button { border: 1px solid #adc0b4; border-radius: 8px; padding: 8px 11px; color: var(--green); background: white; cursor: pointer; }
+.reference-file-list { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 7px; }
+.reference-file { display: flex !important; align-items: center; gap: 7px; max-width: 100%; padding: 5px 8px 5px 10px; border-radius: 99px; background: var(--mint); color: var(--green-dark); font-size: 11px; }
+.reference-file > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.reference-file button { border: 0; padding: 0; color: inherit; background: transparent; cursor: pointer; font-size: 15px; line-height: 1; }
 .composer-footer { border-top: 1px solid var(--line); min-height: 70px; display: flex; align-items: center; justify-content: space-between; gap: 20px; }
 .composer-footer > span { color: var(--muted); font-size: 12px; }
 .ai-status { margin-left: auto; color: var(--muted); font-size: 12px; }

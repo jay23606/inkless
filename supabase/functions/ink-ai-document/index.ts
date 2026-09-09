@@ -56,6 +56,9 @@ Deno.serve(async (request) => {
     const parties = Array.isArray(body.parties)
       ? body.parties.slice(0, 20).map((p: Record<string, unknown>) => ({ name: text(p.name, 120), email: text(p.email, 254) }))
       : [];
+    const references = Array.isArray(body.references)
+      ? body.references.slice(0, 5).map((file: Record<string, unknown>) => ({ filename: text(file.filename, 300), fileUrl: text(file.fileUrl, 4_000) })).filter((file: { filename: string; fileUrl: string }) => file.filename && /^https:\/\//.test(file.fileUrl))
+      : [];
     const task = body.action === "draft"
       ? `Draft an agreement from this intent:\n${text(body.intent, 8_000)}`
       : body.action === "revise"
@@ -69,7 +72,12 @@ Deno.serve(async (request) => {
           { type: "input_text", text: `${task}\nFILENAME: ${text(body.filename, 300)}\nPARTIES: ${JSON.stringify(parties)}` },
           { type: "input_file", file_url: text(body.fileUrl, 4_000) },
         ] }]
-      : `${task}\nPARTIES:\n${JSON.stringify(parties)}`;
+      : body.action === "draft" && references.length
+        ? [{ role: "user", content: [
+            { type: "input_text", text: `${task}\nPARTIES:\n${JSON.stringify(parties)}\nUse the attached examples only as drafting references. Preserve the user's expressed deal terms, adapt rather than copy blindly, and flag conflicting or missing terms.` },
+            ...references.map((file: { filename: string; fileUrl: string }) => ({ type: "input_file", file_url: file.fileUrl, filename: file.filename })),
+          ] }]
+        : `${task}\nPARTIES:\n${JSON.stringify(parties)}`;
 
     const response = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
