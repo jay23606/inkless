@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Draft, revise, upload, and send documents for electronic signature.">
+  <meta name="referrer" content="no-referrer">
+  <meta name="robots" content="noindex,nofollow">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://esm.sh; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self' https://esm.sh https://*.supabase.co; img-src 'self' data: blob:; object-src blob:; frame-src blob:; base-uri 'self'; form-action 'self'">
+  <title>Inkless — simple agreements</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=Newsreader:opsz,wght@6..72,500;6..72,600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="#" aria-label="Inkless home"><span class="brand-mark">i</span> inkless</a>
+    <div class="top-actions">
+      <span id="saveState" class="save-state">Saved</span>
+      <button id="profileButton" class="avatar" type="button" aria-label="Open profile">NS</button>
+    </div>
+  </header>
+
+  <main>
+    <section id="homeView" class="shell">
+      <div class="intro">
+        <p class="eyebrow">NEW AGREEMENT</p>
+        <h1>What are we signing?</h1>
+        <p>Start with a thought or bring a document you already have.</p>
+      </div>
+
+      <div class="start-grid">
+        <button id="draftCard" class="start-card active" type="button">
+          <span class="card-icon">✦</span>
+          <span><strong>Draft with AI</strong><small>Describe the agreement in plain language.</small></span>
+          <span class="arrow">→</span>
+        </button>
+        <button id="uploadCard" class="start-card" type="button">
+          <span class="card-icon">↑</span>
+          <span><strong>Upload a document</strong><small>PDF, DOCX, or TXT up to 10 MB.</small></span>
+          <span class="arrow">→</span>
+        </button>
+      </div>
+
+      <section id="draftPanel" class="composer panel">
+        <label for="intent">Describe what you need</label>
+        <textarea id="intent" rows="5" placeholder="A mutual NDA between me and Maya Chen for discussing a mobile app concept. Confidentiality should last two years."></textarea>
+        <div class="template-picker" aria-labelledby="templatePickerLabel">
+          <div class="template-picker-heading"><span id="templatePickerLabel">Start from a common agreement</span><small>Choosing a type adds an editable brief above.</small></div>
+          <div class="template-selects">
+            <label><span>Category</span><select id="agreementCategory"><option value="">Choose a category…</option></select></label>
+            <label><span>Agreement</span><select id="agreementType" disabled><option value="">Choose an agreement…</option></select></label>
+          </div>
+        </div>
+        <div class="suggestions" aria-label="Popular agreement templates">
+          <button type="button" data-template="mutual-nda">Mutual NDA</button>
+          <button type="button" data-template="service-agreement">Service agreement</button>
+          <button type="button" data-template="residential-lease">Residential lease</button>
+          <button type="button" data-template="land-contract">Land contract</button>
+          <button type="button" data-template="promissory-note">Promissory note</button>
+          <button type="button" data-template="release-waiver">Release & waiver</button>
+        </div>
+        <div class="composer-footer">
+          <span>AI drafts are a starting point. Review before sending.</span>
+          <button id="createDraft" class="primary" type="button">Create draft <span>→</span></button>
+        </div>
+      </section>
+
+      <section id="uploadPanel" class="panel hidden">
+        <input id="fileInput" type="file" multiple accept=".pdf,.docx,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain" hidden>
+        <button id="dropzone" class="dropzone" type="button">
+          <span class="upload-glyph">↑</span>
+          <strong>Choose documents</strong>
+          <span>or drop them here · arrange before continuing</span>
+        </button>
+        <div id="fileInfo" class="file-info hidden"><div class="packet-heading"><strong>Signing packet</strong><span>Drag files or use the arrows to change order.</span></div><div id="fileList" class="file-list"></div></div>
+        <div class="composer-footer">
+          <span>Originals are retained, hashed, and presented to every signer.</span>
+          <button id="prepareUpload" class="primary" type="button" disabled>Prepare for signing <span>→</span></button>
+        </div>
+      </section>
+
+      <section class="recent">
+        <div class="section-heading"><h2>Recent</h2><button id="clearDemo" type="button">Clear</button></div>
+        <div id="recentList" class="recent-list">
+          <div class="empty-row">Your drafts and sent agreements will appear here.</div>
+        </div>
+      </section>
+    </section>
+
+    <section id="editorView" class="editor-view hidden">
+      <aside class="editor-sidebar">
+        <button id="backButton" class="back" type="button">← All agreements</button>
+        <div class="step complete"><span>1</span><div><strong>Document</strong><small>Draft and revise</small></div></div>
+        <div class="step current"><span>2</span><div><strong>People</strong><small>Add signers</small></div></div>
+        <div class="step"><span>3</span><div><strong>Review & send</strong><small>Freeze this version</small></div></div>
+        <div class="security-note"><span>◇</span><p>Your OpenAI key stays in the server-side vault and is never sent to this browser.</p></div>
+      </aside>
+
+      <div class="editor-main">
+        <div class="editor-toolbar">
+          <div><input id="documentTitle" class="title-input" value="Untitled agreement" aria-label="Document title"><span id="docStatus" class="status-pill">DRAFT</span></div>
+          <div class="toolbar-actions"><button id="downloadButton" class="secondary" type="button">Download</button><button id="reviewButton" class="primary" type="button">Review & send →</button></div>
+        </div>
+
+        <div class="workspace">
+          <div class="paper-wrap">
+            <article id="documentPaper" class="paper" contenteditable="true" spellcheck="true" aria-label="Editable agreement">
+              <h1>Mutual Non-Disclosure Agreement</h1>
+              <p class="lede">This Mutual Non-Disclosure Agreement (“Agreement”) is entered into as of <mark>the date of the final signature</mark>.</p>
+              <h2>1. Purpose</h2>
+              <p>The parties wish to explore a possible business relationship concerning a software product (the “Purpose”). In doing so, either party may share information that should remain confidential.</p>
+              <h2>2. Confidential information</h2>
+              <p>“Confidential Information” means non-public business, technical, financial, or product information disclosed for the Purpose, whether communicated verbally, visually, electronically, or in writing.</p>
+              <h2>3. Responsibilities</h2>
+              <p>Each receiving party will use reasonable care to protect Confidential Information, use it only for the Purpose, and share it only with people who need it and are bound by similar duties.</p>
+              <h2>4. Term</h2>
+              <p>These confidentiality obligations continue for two years from each disclosure.</p>
+            </article>
+          </div>
+
+          <aside class="people-panel">
+            <div class="panel-title"><div><p class="eyebrow">SIGNERS</p><h2>Who needs to sign?</h2></div><span id="peopleCount">1</span></div>
+            <label id="onlyMeOption" class="only-me hidden"><input id="onlyMe" type="checkbox"><span><strong>Just me</strong><small>Use my signed-in profile as the only signer.</small></span></label>
+            <div id="peopleList" class="people-list"></div>
+            <button id="addPerson" class="add-person" type="button">+ Add another person</button>
+
+            <div class="revision-box">
+              <label for="revisionPrompt"><span>✦</span> Guide the draft</label>
+              <textarea id="revisionPrompt" rows="4" placeholder="Make it mutual, use plainer language, and change the term to three years…"></textarea>
+              <button id="reviseButton" type="button">Revise with AI</button>
+              <small>Revision history is kept until you send.</small>
+            </div>
+          </aside>
+        </div>
+      </div>
+    </section>
+
+    <section id="signView" class="shell hidden">
+      <div class="intro"><p class="eyebrow">SIGNATURE REQUEST</p><h1 id="signTitle">Review and sign</h1><p id="signFrom"></p></div>
+      <div class="sign-layout">
+        <article id="signPaper" class="paper"></article>
+        <aside class="panel sign-box">
+          <p class="eyebrow">YOUR SIGNATURE</p>
+          <label>Full legal name<input id="signerName" autocomplete="name"></label>
+          <div class="signature-tabs"><button id="signTypeTab" class="active" type="button">Choose a font</button><button id="signDrawTab" type="button">Draw</button></div>
+          <div id="signTypePanel"><select id="signSignatureFont" aria-label="Signature font"><option value="newsreader">Classic script</option><option value="cursive">Casual cursive</option><option value="serif">Formal serif</option><option value="sans">Clean handwritten</option></select><div id="typedSignature" class="signature-preview signature-newsreader">Your signature</div></div>
+          <div id="signDrawPanel" class="hidden"><canvas id="signSignatureCanvas" class="signature-canvas" width="430" height="130" aria-label="Draw your signature"></canvas><button id="clearSignSignature" class="clear-signature" type="button">Clear drawing</button></div>
+          <label class="consent"><input id="signConsent" type="checkbox"><span>I agree to use electronic records and adopt the signature above for this document.</span></label>
+          <button id="completeSignature" class="primary full" type="button" disabled>Sign document</button>
+          <p class="fine-print centered">You can download a copy after signing.</p>
+        </aside>
+      </div>
+    </section>
+  </main>
+
+  <dialog id="profileDialog">
+    <form method="dialog" class="dialog-card">
+      <div class="dialog-heading"><div><p class="eyebrow">YOUR PROFILE</p><h2>Ready every time.</h2></div><button value="cancel" aria-label="Close">×</button></div>
+      <div id="authPanel" class="auth-panel hidden">
+        <p>Sign in with a private email link to sync documents and use AI.</p>
+        <div class="auth-row"><input id="authEmail" type="email" placeholder="you@example.com" aria-label="Sign-in email"><button id="signInButton" type="button">Email sign-in link</button></div>
+      </div>
+      <div id="authStatus" class="auth-status"></div>
+      <label>Name<input id="profileName" autocomplete="name" value="Nimol S."></label>
+      <label>Email<input id="profileEmail" type="email" autocomplete="email" placeholder="you@example.com"></label>
+      <fieldset class="signature-setup">
+        <legend>Your saved signature</legend>
+        <div class="signature-tabs"><button id="profileTypeTab" class="active" type="button">Choose a font</button><button id="profileDrawTab" type="button">Draw</button></div>
+        <div id="profileTypePanel"><select id="profileSignatureFont" aria-label="Signature font"><option value="newsreader">Classic script</option><option value="cursive">Casual cursive</option><option value="serif">Formal serif</option><option value="sans">Clean handwritten</option></select><div class="signature-preview signature-newsreader" id="signaturePreview">Nimol</div></div>
+        <div id="profileDrawPanel" class="hidden"><canvas id="profileSignatureCanvas" class="signature-canvas" width="430" height="130" aria-label="Draw your signature"></canvas><button id="clearProfileSignature" class="clear-signature" type="button">Clear drawing</button></div>
+      </fieldset>
+      <p class="fine-print">Your signature is applied only when you explicitly approve a document.</p>
+      <button id="saveProfile" class="primary full" value="default">Save profile</button>
+      <button id="signOutButton" class="text-button hidden" type="button">Sign out</button>
+    </form>
+  </dialog>
+
+  <dialog id="reviewDialog">
+    <form method="dialog" class="dialog-card review-card">
+      <div class="dialog-heading"><div><p class="eyebrow">FINAL CHECK</p><h2>Ready to send?</h2></div><button value="cancel" aria-label="Close">×</button></div>
+      <div id="reviewSummary" class="review-summary"></div>
+      <label class="consent"><input id="reviewConfirm" type="checkbox"> <span>I reviewed this document and want to freeze this version for signature.</span></label>
+      <button id="sendButton" class="primary full" type="button" disabled>Freeze and send invitations</button>
+      <p class="fine-print centered">Demo mode records the action locally. Configure Supabase to send real invitations.</p>
+    </form>
+  </dialog>
+
+  <dialog id="linksDialog">
+    <form method="dialog" class="dialog-card">
+      <div class="dialog-heading"><div><p class="eyebrow">INVITATIONS CREATED</p><h2>Share these links</h2></div><button value="cancel" aria-label="Close">×</button></div>
+      <p>Email delivery is unavailable for one or more recipients. Copy their private links instead.</p>
+      <div id="linksList" class="links-list"></div>
+      <button class="secondary full" value="default">Done</button>
+    </form>
+  </dialog>
+
+  <template id="personTemplate">
+    <div class="person-row">
+      <div class="person-avatar"></div>
+      <div class="person-fields"><input class="person-name" placeholder="Full name" aria-label="Signer name"><input class="person-email" type="email" placeholder="Email address" aria-label="Signer email"></div>
+      <button class="remove-person" type="button" aria-label="Remove signer">×</button>
+    </div>
+  </template>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script type="module" src="app.js"></script>
+</body>
+</html>

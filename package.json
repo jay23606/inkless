@@ -1,0 +1,9 @@
+{
+  "name": "inkless",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --check app.js && node --check core.js && node --check data.js && node --test tests/*.test.mjs",
+    "serve": "node tests/server.mjs"
+  }
+}

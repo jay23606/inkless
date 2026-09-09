@@ -1,0 +1,7 @@
+project_id = "inkless"
+
+[functions.ink-ai-document]
+verify_jwt = false
+
+[functions.ink-envelope]
+verify_jwt = false
