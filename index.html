@@ -150,13 +150,23 @@
         <article id="signPaper" class="paper"></article>
         <aside class="panel sign-box">
           <p class="eyebrow">YOUR SIGNATURE</p>
-          <label>Full legal name<input id="signerName" autocomplete="name"></label>
-          <div class="signature-tabs"><button id="signTypeTab" class="active" type="button">Choose a font</button><button id="signDrawTab" type="button">Draw</button></div>
-          <div id="signTypePanel"><select id="signSignatureFont" aria-label="Signature font"><option value="newsreader">Classic script</option><option value="cursive">Casual cursive</option><option value="serif">Formal serif</option><option value="sans">Clean handwritten</option></select><div id="typedSignature" class="signature-preview signature-newsreader">Your signature</div></div>
-          <div id="signDrawPanel" class="hidden"><canvas id="signSignatureCanvas" class="signature-canvas" width="430" height="130" aria-label="Draw your signature"></canvas><button id="clearSignSignature" class="clear-signature" type="button">Clear drawing</button></div>
-          <label class="consent"><input id="signConsent" type="checkbox"><span>I agree to use electronic records and adopt the signature above for this document.</span></label>
-          <button id="completeSignature" class="primary full" type="button" disabled>Sign document</button>
-          <p class="fine-print centered">You can download a copy after signing.</p>
+          <div id="signAuthGate" class="sign-auth-gate hidden">
+            <strong>Verify your email to continue</strong>
+            <p id="signEmailHint" class="fine-print"></p>
+            <input id="signAuthEmail" type="email" autocomplete="email" placeholder="Your assigned email" aria-label="Your assigned email">
+            <button id="signAuthButton" class="primary full" type="button">Email me a sign-in link</button>
+            <p class="fine-print">The authenticated email must match this private invitation.</p>
+          </div>
+          <div id="signingControls" class="hidden">
+            <div class="verified-badge">✓ Email verified</div>
+            <label>Full legal name<input id="signerName" autocomplete="name"></label>
+            <div class="signature-tabs"><button id="signTypeTab" class="active" type="button">Choose a font</button><button id="signDrawTab" type="button">Draw</button></div>
+            <div id="signTypePanel"><select id="signSignatureFont" aria-label="Signature font"><option value="newsreader">Classic script</option><option value="cursive">Casual cursive</option><option value="serif">Formal serif</option><option value="sans">Clean handwritten</option></select><div id="typedSignature" class="signature-preview signature-newsreader">Your signature</div></div>
+            <div id="signDrawPanel" class="hidden"><canvas id="signSignatureCanvas" class="signature-canvas" width="430" height="130" aria-label="Draw your signature"></canvas><button id="clearSignSignature" class="clear-signature" type="button">Clear drawing</button></div>
+            <label class="consent"><input id="signConsent" type="checkbox"><span>I agree to use electronic records and adopt the signature above for this document.</span></label>
+            <button id="completeSignature" class="primary full" type="button" disabled>Sign document</button>
+            <p class="fine-print centered">You can download a copy after signing.</p>
+          </div>
         </aside>
       </div>
     </section>
@@ -219,6 +229,6 @@
   </template>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
-  <script type="module" src="app.js?v=6f837ae"></script>
+  <script type="module" src="app.js?v=4dc821f"></script>
 </body>
 </html>

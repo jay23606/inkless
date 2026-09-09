@@ -23,7 +23,7 @@ AI-generated agreements are starting points, not legal advice. Review every docu
 The project follows OpenStart's client/backend boundary:
 
 - The browser owns presentation and reversible draft state.
-- Supabase Auth identifies senders and returning signers.
+- Supabase Auth identifies senders and signers. A signer must authenticate a confirmed email address that exactly matches the address assigned to the private invitation.
 - PostgreSQL owns durable documents, contacts, parties, versions, fields, signatures, and audit events.
 - Every Inkless database object uses the `il_` prefix so it can safely share the existing Supabase project with other applications.
 - Private Supabase Storage holds uploaded originals and temporary AI references.
@@ -70,7 +70,9 @@ The unconfigured app allows UI exploration, document selection and ordering, pro
    supabase secrets set APP_ORIGIN="https://jay23606.github.io/inkless"
    ```
 
-5. To send invitation emails, verify a sending domain and configure Resend:
+5. Configure production email delivery for Supabase Auth. Inkless uses Supabase Auth exclusively for signer authentication, but Supabase's default SMTP service is limited and is not intended for arbitrary production recipients. Configure any supported custom SMTP provider in the Supabase dashboard before inviting external signers.
+
+6. Optionally, verify a sending domain and configure Resend for automatic document-invitation delivery:
 
    ```bash
    supabase secrets set RESEND_API_KEY=re_...
@@ -79,7 +81,7 @@ The unconfigured app allows UI exploration, document selection and ordering, pro
 
    If automatic delivery is unavailable, Inkless creates a separate private link for every signer and provides both a prepared `mailto:` action and a copy button. One link is never shared among multiple signers because each token identifies a specific signing party.
 
-6. Add both URLs to the Supabase Auth redirect allow-list:
+7. Add both URLs to the Supabase Auth redirect allow-list:
 
    - `http://localhost:8000`
    - `https://jay23606.github.io/inkless/`
@@ -107,6 +109,7 @@ Uploaded or referenced document contents are treated as untrusted source materia
 - Multi-file packet order is persisted in `il_document_files`.
 - Original-file SHA-256 hashes are included in the frozen envelope manifest.
 - Raw invitation tokens are delivered to recipients; only their SHA-256 hashes are stored. Tokens expire after 14 days and are placed in URL fragments rather than query strings.
+- An invitation link permits document review, but not signing. The signing mutation requires a confirmed Supabase Auth session whose email exactly matches the invitation; the signature and audit event retain that Supabase user ID.
 - Sending freezes an immutable version and stores a SHA-256 hash of its title, sanitized HTML, attachment manifest, and field plan.
 - Signature application is deterministic. AI proposes locations but cannot consent or sign for a person.
 - A signature record includes the frozen version and hash, adopted name, signature method, applied fields, exact consent statement, timestamp, user agent, and a hash—not plaintext—of the network address.

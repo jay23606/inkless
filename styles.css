@@ -164,6 +164,9 @@ dialog::backdrop { background: rgba(17,31,25,.48); backdrop-filter: blur(3px); }
 .signature-setup { border: 0; padding: 0; margin: 16px 0; }
 .provider-settings { padding: 13px; border: 1px solid var(--line); border-radius: 10px; background: #fbfcfa; }
 .provider-actions { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+.sign-auth-gate { display: grid; gap: 10px; padding: 14px; border: 1px solid #c4d2c9; border-radius: 10px; background: #f7faf7; }
+.sign-auth-gate p { margin: 0; }
+.verified-badge { display: inline-block; margin-bottom: 12px; padding: 4px 8px; border-radius: 99px; color: var(--green); background: var(--mint); font-size: 11px; font-weight: 600; }
 .signature-setup legend { color: var(--muted); font-size: 12px; margin-bottom: 7px; }
 .signature-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin: 8px 0 7px; }
 .signature-tabs button { border: 1px solid var(--line); border-radius: 7px; padding: 7px; background: var(--wash); cursor: pointer; font-size: 11px; }

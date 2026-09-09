@@ -146,6 +146,22 @@ test("email remains required while invitations support per-signer mailto fallbac
   assert.match(envelope, /invite_token_hash/);
 });
 
+test("signers must authenticate a verified matching Supabase email", async () => {
+  const html = await read("index.html");
+  const app = await read("app.js");
+  const envelope = await read("supabase/functions/ink-envelope/index.ts");
+  const migration = await read("supabase/migrations/20260909007000_signer_identity.sql");
+  assert.match(html, /id="signAuthGate"/);
+  assert.match(html, /id="signingControls" class="hidden"/);
+  assert.match(app, /signerIdentityVerified/);
+  assert.match(app, /inkless-pending-signing/);
+  assert.match(envelope, /email_confirmed_at/);
+  assert.match(envelope, /email\?\.toLowerCase\(\) !== party\.email\.toLowerCase\(\)/);
+  assert.match(envelope, /signer_user_id: signedInUser\.id/);
+  assert.match(envelope, /identity_method: "supabase_email"/);
+  assert.match(migration, /references auth\.users\(id\)/);
+});
+
 test("personal OpenAI keys are managed server-side and encrypted", async () => {
   const html = await read("index.html");
   const app = await read("app.js");

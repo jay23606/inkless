@@ -17,6 +17,7 @@ import { clearDemoDocuments, demoDocuments, demoProfile, invokeFunction, invokeP
     profileSignatureMode: "font",
     signSignatureMode: "font",
     signingToken: "",
+    signerIdentityVerified: false,
     sessionEmail: "",
     aiReady: false,
     fields: []
@@ -147,7 +148,7 @@ import { clearDemoDocuments, demoDocuments, demoProfile, invokeFunction, invokeP
     preview.className = `signature-preview signature-${font}`;
   }
   function updateSignReady() {
-    $("#completeSignature").disabled = !$("#signConsent").checked || !$("#signerName").value.trim();
+    $("#completeSignature").disabled = !state.signerIdentityVerified || !$("#signConsent").checked || !$("#signerName").value.trim();
   }
   function documentHtmlWithoutFieldMarkers() {
     const copy = $("#documentPaper").cloneNode(true);
@@ -400,6 +401,11 @@ import { clearDemoDocuments, demoDocuments, demoProfile, invokeFunction, invokeP
     try {
       const result = await invokePublicFunction("ink-envelope", { action: "get", token });
       $("#signTitle").textContent = result.title; $("#signPaper").innerHTML = result.html; $("#signerName").value = result.signerName; $("#typedSignature").textContent = result.signerName || "Your signature";
+      state.signerIdentityVerified = Boolean(result.identityVerified);
+      $("#signAuthGate").classList.toggle("hidden", state.signerIdentityVerified);
+      $("#signingControls").classList.toggle("hidden", !state.signerIdentityVerified);
+      $("#signEmailHint").textContent = `Sign in as ${result.signerEmailHint || "the invited email address"}.`;
+      updateSignReady();
       if (result.files?.length) {
         const originals = result.files.map((file, index) => `<li><a href="${file.url}" target="_blank" rel="noopener">${index + 1}. ${escapeHtml(file.filename)}</a> <small>SHA-256 ${escapeHtml(file.sha256.slice(0, 12))}…</small></li>`).join("");
         $("#signPaper").insertAdjacentHTML("afterbegin", `<section class="original-files"><h2>Original files</h2><p>These originals are part of the frozen signing packet.</p><ol>${originals}</ol></section>`);
@@ -408,10 +414,18 @@ import { clearDemoDocuments, demoDocuments, demoProfile, invokeFunction, invokeP
       if (result.savedSignature) {
         const saved = result.savedSignature;
         $("#signSignatureFont").value = saved.signature_font || "newsreader"; applySignatureFont("sign", $("#signSignatureFont").value);
-        setSignatureMode("sign", saved.signature_method === "draw" ? "draw" : "font");
+        setSignatureMode("sign", saved.signature_method === "drawn" ? "draw" : "font");
         if (saved.signature_data) signPad.load(saved.signature_data);
       }
     } catch (error) { $("#signPaper").innerHTML = `<h1>Link unavailable</h1><p>${escapeHtml(error.message)}</p>`; $("#completeSignature").disabled = true; }
+  }
+  async function sendSignerSignInLink() {
+    const email = $("#signAuthEmail").value.trim();
+    if (!email) return toast("Enter the email address used for this invitation.");
+    localStorage.setItem("inkless-pending-signing", JSON.stringify({ token: state.signingToken, expires: Date.now() + 15 * 60 * 1000 }));
+    const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: `${location.origin}${location.pathname}` } });
+    if (error) { localStorage.removeItem("inkless-pending-signing"); return toast(error.message); }
+    toast("Check your email for the sign-in link.");
   }
   async function completeSignature() {
     const token = state.signingToken;
@@ -469,6 +483,7 @@ import { clearDemoDocuments, demoDocuments, demoProfile, invokeFunction, invokeP
   $("#onlyMe").addEventListener("change", event => setOnlyMe(event.target.checked));
   $("#profileButton").addEventListener("click", () => $("#profileDialog").showModal()); $("#saveProfile").addEventListener("click", saveProfile);
   $("#signInButton").addEventListener("click", sendSignInLink);
+  $("#signAuthButton").addEventListener("click", sendSignerSignInLink);
   $("#saveOpenAIKey").addEventListener("click", saveOpenAIKey); $("#removeOpenAIKey").addEventListener("click", removeOpenAIKey);
   $("#signOutButton").addEventListener("click", async () => { await supabase.auth.signOut(); await refreshAuth(); toast("Signed out"); });
   $("#fileInput").addEventListener("change", e => chooseFiles(e.target.files)); $("#dropzone").addEventListener("click", () => $("#fileInput").click());
@@ -487,8 +502,19 @@ import { clearDemoDocuments, demoDocuments, demoProfile, invokeFunction, invokeP
   $("#documentPaper").addEventListener("input", () => saveStatus("Saving…")); $("#documentTitle").addEventListener("input", () => saveStatus("Saving…"));
   $("#profileName").value = state.profile.name || ""; $("#profileEmail").value = state.profile.email || ""; $("#profileButton").textContent = initials(state.profile.name); $("#signaturePreview").textContent = state.profile.name || "Signature";
   $("#profileSignatureFont").value = state.profile.signatureFont || "newsreader"; applySignatureFont("profile", $("#profileSignatureFont").value); setSignatureMode("profile", state.profile.signatureMethod || "font"); profilePad.load(state.profile.signatureData);
-  initializeTemplates(); addPerson(state.profile); renderRecent(); refreshAuth();
-  if (supabase) supabase.auth.onAuthStateChange(() => refreshAuth());
-  const signingToken = new URLSearchParams(location.hash.replace(/^#/, "")).get("sign") || new URLSearchParams(location.search).get("sign");
-  if (signingToken) loadSigningRequest(signingToken);
+  async function bootstrap() {
+    initializeTemplates(); addPerson(state.profile); renderRecent(); await refreshAuth();
+    let signingToken = new URLSearchParams(location.hash.replace(/^#/, "")).get("sign") || new URLSearchParams(location.search).get("sign");
+    if (!signingToken && configured) {
+      try {
+        const pending = JSON.parse(localStorage.getItem("inkless-pending-signing") || "null");
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session && pending?.token && pending.expires > Date.now()) signingToken = pending.token;
+        if (!pending?.expires || pending.expires <= Date.now() || signingToken) localStorage.removeItem("inkless-pending-signing");
+      } catch { localStorage.removeItem("inkless-pending-signing"); }
+    }
+    if (signingToken) await loadSigningRequest(signingToken);
+  }
+  if (supabase) supabase.auth.onAuthStateChange(() => setTimeout(async () => { await refreshAuth(); if (state.signingToken) await loadSigningRequest(state.signingToken); }, 0));
+  bootstrap();
 })();

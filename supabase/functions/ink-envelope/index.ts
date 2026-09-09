@@ -10,6 +10,11 @@ function randomToken() {
   return btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 const clean = (value: unknown, max: number) => String(value || "").trim().slice(0, max);
+function maskEmail(value: string) {
+  const [local, domain] = value.split("@");
+  if (!local || !domain) return "the invited email address";
+  return `${local.slice(0, 1)}${"*".repeat(Math.min(3, Math.max(1, local.length - 1)))}@${domain}`;
+}
 function cleanHtml(value: unknown) {
   const allowed = new Set(["section","h1","h2","p","ul","ol","li","strong","em","mark","hr"]);
   return clean(value, 100_000).replace(/<(script|style|iframe|object|embed|form)[\s\S]*?<\/\1>/gi, "")
@@ -86,7 +91,8 @@ Deno.serve(async (request) => {
         if (!party.viewed_at) { await admin.from("il_parties").update({ viewed_at: new Date().toISOString(), status: "viewed" }).eq("id", party.id); await admin.from("il_audit_events").insert({ document_id: document.id, party_id: party.id, event_type: "document.viewed" }); }
         let savedSignature = null;
         const signedInUser = await requiredUser(request);
-        if (signedInUser?.email?.toLowerCase() === party.email.toLowerCase()) {
+        const identityVerified = Boolean(signedInUser?.email_confirmed_at && signedInUser.email?.toLowerCase() === party.email.toLowerCase());
+        if (identityVerified && signedInUser) {
           const { data: profile } = await admin.from("il_profiles").select("signature_method,signature_font,signature_data").eq("id", signedInUser.id).maybeSingle();
           savedSignature = profile;
         }
@@ -99,9 +105,13 @@ Deno.serve(async (request) => {
         }));
         const partyIndex = Math.max(0, Number(party.signing_order) - 1);
         const fields = Array.isArray(version.field_plan) ? version.field_plan.filter((field: any) => field.partyIndex === partyIndex) : [];
-        return json(request, { title: version.title, html: version.body_html, signerName: party.full_name, status: party.status, savedSignature, files, fields });
+        return json(request, { title: version.title, html: version.body_html, signerName: party.full_name, signerEmailHint: maskEmail(party.email), identityVerified, status: party.status, savedSignature, files, fields });
       }
       if (party.signed_at) return json(request, { error: "This document has already been signed" }, 409);
+      const signedInUser = await requiredUser(request);
+      if (!signedInUser) return json(request, { error: "Sign in with the invited email address before signing" }, 401);
+      if (!signedInUser.email_confirmed_at) return json(request, { error: "Verify your email address before signing" }, 403);
+      if (signedInUser.email?.toLowerCase() !== party.email.toLowerCase()) return json(request, { error: "Your verified email does not match this invitation" }, 403);
       const adoptedName = clean(body.adoptedName, 120);
       if (!body.consent || !adoptedName) return json(request, { error: "Name and electronic-signature consent are required" }, 400);
       const requestedMethod = body.signatureMethod === "draw" ? "drawn" : "typed";
@@ -114,9 +124,9 @@ Deno.serve(async (request) => {
       const partyIndex = Math.max(0, Number(party.signing_order) - 1);
       const initials = adoptedName.split(/\s+/).filter(Boolean).map((part: string) => part[0]).join("").toUpperCase().slice(0, 8);
       const appliedFields = (Array.isArray(version.field_plan) ? version.field_plan : []).filter((field: any) => field.partyIndex === partyIndex).map((field: any) => ({ ...field, value: field.type === "signature" ? signatureData : field.type === "initials" ? initials : field.type === "date" ? new Date().toISOString().slice(0, 10) : adoptedName }));
-      await admin.from("il_signatures").insert({ party_id: party.id, version_id: version.id, adopted_name: adoptedName, signature_method: requestedMethod, signature_data: signatureData, signature_font: requestedMethod === "typed" ? signatureFont : null, applied_fields: appliedFields, consent_text: consentText, document_hash: version.content_hash, ip_hash: await hash(ip), user_agent: agent });
+      await admin.from("il_signatures").insert({ party_id: party.id, version_id: version.id, signer_user_id: signedInUser.id, identity_method: "supabase_email", adopted_name: adoptedName, signature_method: requestedMethod, signature_data: signatureData, signature_font: requestedMethod === "typed" ? signatureFont : null, applied_fields: appliedFields, consent_text: consentText, document_hash: version.content_hash, ip_hash: await hash(ip), user_agent: agent });
       await admin.from("il_parties").update({ signed_at: new Date().toISOString(), status: "signed" }).eq("id", party.id);
-      await admin.from("il_audit_events").insert({ document_id: document.id, party_id: party.id, event_type: "document.signed", metadata: { documentHash: version.content_hash, method: requestedMethod } });
+      await admin.from("il_audit_events").insert({ document_id: document.id, party_id: party.id, actor_user_id: signedInUser.id, event_type: "document.signed", metadata: { documentHash: version.content_hash, method: requestedMethod, identityMethod: "supabase_email" } });
       const { count } = await admin.from("il_parties").select("id", { head: true, count: "exact" }).eq("document_id", document.id).neq("status", "signed");
       if (!count) await admin.from("il_documents").update({ status: "completed", completed_at: new Date().toISOString() }).eq("id", document.id);
       return json(request, { signed: true });
