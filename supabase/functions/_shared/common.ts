@@ -48,7 +48,7 @@ export async function enforceRateLimit(request: Request, scope: string, limit: n
   const address = chain?.at(-1) || "unknown";
   const bytes = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(address)));
   const fingerprint = [...bytes.slice(0, 16)].map(byte => byte.toString(16).padStart(2, "0")).join("");
-  const { data, error } = await adminClient().rpc("ink_check_rate_limit", { p_key: `${scope}:${fingerprint}`, p_limit: limit, p_seconds: seconds });
+  const { data, error } = await adminClient().rpc("il_check_rate_limit", { p_key: `${scope}:${fingerprint}`, p_limit: limit, p_seconds: seconds });
   if (error) throw error;
   return data === true;
 }

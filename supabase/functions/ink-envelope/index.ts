@@ -41,9 +41,9 @@ Deno.serve(async (request) => {
         width: Math.max(0, Math.min(1, Number(field.width) || 0)), height: Math.max(0, Math.min(1, Number(field.height) || 0)),
       }));
       const contentHash = await hash(`${title}\n${html}\n${JSON.stringify(attachmentManifest)}\n${JSON.stringify(fieldPlan)}`);
-      const { data: document, error: docError } = await admin.from("ink_documents").insert({ owner_id: user.id, title, status: "sent", sent_at: new Date().toISOString() }).select().single();
+      const { data: document, error: docError } = await admin.from("il_documents").insert({ owner_id: user.id, title, status: "sent", sent_at: new Date().toISOString() }).select().single();
       if (docError) throw docError;
-      const { data: version, error: versionError } = await admin.from("ink_document_versions").insert({ document_id: document.id, version: 1, title, body_html: html, field_plan: fieldPlan, content_hash: contentHash, frozen_at: new Date().toISOString() }).select().single();
+      const { data: version, error: versionError } = await admin.from("il_document_versions").insert({ document_id: document.id, version: 1, title, body_html: html, field_plan: fieldPlan, content_hash: contentHash, frozen_at: new Date().toISOString() }).select().single();
       if (versionError) throw versionError;
       if (attachmentManifest.length) {
         const rows = attachmentManifest.map(file => {
@@ -52,7 +52,7 @@ Deno.serve(async (request) => {
           if (!/^[0-9a-f]{64}$/.test(file.sha256) || file.size < 1 || file.size > 10 * 1024 * 1024) throw new Error("Invalid uploaded-file manifest");
           return { document_id: document.id, storage_path: storagePath, filename: file.filename, mime_type: file.mimeType, byte_size: file.size, sha256: file.sha256, packet_order: file.order };
         });
-        const { error: filesError } = await admin.from("ink_document_files").insert(rows);
+        const { error: filesError } = await admin.from("il_document_files").insert(rows);
         if (filesError) throw filesError;
       }
       const publicOrigin = appOrigin();
@@ -60,7 +60,7 @@ Deno.serve(async (request) => {
       for (const [index, party] of parties.entries()) {
         const token = randomToken(), tokenHash = await hash(token), email = clean(party.email, 254), fullName = clean(party.name, 120);
         if (!email || !fullName) continue;
-        const { data: savedParty, error } = await admin.from("ink_parties").insert({ document_id: document.id, full_name: fullName, email, signing_order: index + 1, invite_token_hash: tokenHash, invite_expires_at: new Date(Date.now() + 14 * 864e5).toISOString() }).select().single();
+        const { data: savedParty, error } = await admin.from("il_parties").insert({ document_id: document.id, full_name: fullName, email, signing_order: index + 1, invite_token_hash: tokenHash, invite_expires_at: new Date(Date.now() + 14 * 864e5).toISOString() }).select().single();
         if (error) throw error;
         const url = `${publicOrigin}/#sign=${encodeURIComponent(token)}`;
         const resendKey = Deno.env.get("RESEND_API_KEY"), from = Deno.env.get("RESEND_FROM_EMAIL");
@@ -71,29 +71,29 @@ Deno.serve(async (request) => {
         }
         invites.push({ partyId: savedParty.id, email, url, emailSent });
       }
-      await admin.from("ink_audit_events").insert({ document_id: document.id, actor_user_id: user.id, event_type: "document.sent", metadata: { contentHash, recipientCount: invites.length } });
+      await admin.from("il_audit_events").insert({ document_id: document.id, actor_user_id: user.id, event_type: "document.sent", metadata: { contentHash, recipientCount: invites.length } });
       return json(request, { documentId: document.id, versionId: version.id, invitations: invites.map(({ email, url, emailSent }) => ({ email, url, emailSent })) });
     }
     if (body.action === "get" || body.action === "sign") {
       if (!await enforceRateLimit(request, body.action === "sign" ? "sign" : "view", body.action === "sign" ? 20 : 120, 3600)) return json(request, { error: "Too many requests. Try again later." }, 429);
       const tokenHash = await hash(clean(body.token, 500));
-      const { data: party, error } = await admin.from("ink_parties").select("*,ink_documents(*,ink_document_versions(*))").eq("invite_token_hash", tokenHash).maybeSingle();
+      const { data: party, error } = await admin.from("il_parties").select("*,il_documents(*,il_document_versions(*))").eq("invite_token_hash", tokenHash).maybeSingle();
       if (error) throw error;
       if (!party || new Date(party.invite_expires_at) < new Date()) return json(request, { error: "This signing link is invalid or expired" }, 404);
-      const document = party.ink_documents, version = document.ink_document_versions.find((v: any) => v.version === document.current_version);
+      const document = party.il_documents, version = document.il_document_versions.find((v: any) => v.version === document.current_version);
       if (!version?.frozen_at || document.status === "void") return json(request, { error: "This document is unavailable" }, 409);
       if (body.action === "get") {
-        if (!party.viewed_at) { await admin.from("ink_parties").update({ viewed_at: new Date().toISOString(), status: "viewed" }).eq("id", party.id); await admin.from("ink_audit_events").insert({ document_id: document.id, party_id: party.id, event_type: "document.viewed" }); }
+        if (!party.viewed_at) { await admin.from("il_parties").update({ viewed_at: new Date().toISOString(), status: "viewed" }).eq("id", party.id); await admin.from("il_audit_events").insert({ document_id: document.id, party_id: party.id, event_type: "document.viewed" }); }
         let savedSignature = null;
         const signedInUser = await requiredUser(request);
         if (signedInUser?.email?.toLowerCase() === party.email.toLowerCase()) {
-          const { data: profile } = await admin.from("ink_profiles").select("signature_method,signature_font,signature_data").eq("id", signedInUser.id).maybeSingle();
+          const { data: profile } = await admin.from("il_profiles").select("signature_method,signature_font,signature_data").eq("id", signedInUser.id).maybeSingle();
           savedSignature = profile;
         }
-        const { data: fileRows, error: fileError } = await admin.from("ink_document_files").select("filename,storage_path,mime_type,byte_size,sha256,packet_order").eq("document_id", document.id).order("packet_order");
+        const { data: fileRows, error: fileError } = await admin.from("il_document_files").select("filename,storage_path,mime_type,byte_size,sha256,packet_order").eq("document_id", document.id).order("packet_order");
         if (fileError) throw fileError;
         const files = await Promise.all((fileRows || []).map(async (file: any) => {
-          const { data, error: urlError } = await admin.storage.from("ink-documents").createSignedUrl(file.storage_path, 900);
+          const { data, error: urlError } = await admin.storage.from("il-documents").createSignedUrl(file.storage_path, 900);
           if (urlError) throw urlError;
           return { filename: file.filename, mimeType: file.mime_type, size: file.byte_size, sha256: file.sha256, order: file.packet_order, url: data.signedUrl };
         }));
@@ -114,11 +114,11 @@ Deno.serve(async (request) => {
       const partyIndex = Math.max(0, Number(party.signing_order) - 1);
       const initials = adoptedName.split(/\s+/).filter(Boolean).map((part: string) => part[0]).join("").toUpperCase().slice(0, 8);
       const appliedFields = (Array.isArray(version.field_plan) ? version.field_plan : []).filter((field: any) => field.partyIndex === partyIndex).map((field: any) => ({ ...field, value: field.type === "signature" ? signatureData : field.type === "initials" ? initials : field.type === "date" ? new Date().toISOString().slice(0, 10) : adoptedName }));
-      await admin.from("ink_signatures").insert({ party_id: party.id, version_id: version.id, adopted_name: adoptedName, signature_method: requestedMethod, signature_data: signatureData, signature_font: requestedMethod === "typed" ? signatureFont : null, applied_fields: appliedFields, consent_text: consentText, document_hash: version.content_hash, ip_hash: await hash(ip), user_agent: agent });
-      await admin.from("ink_parties").update({ signed_at: new Date().toISOString(), status: "signed" }).eq("id", party.id);
-      await admin.from("ink_audit_events").insert({ document_id: document.id, party_id: party.id, event_type: "document.signed", metadata: { documentHash: version.content_hash, method: requestedMethod } });
-      const { count } = await admin.from("ink_parties").select("id", { head: true, count: "exact" }).eq("document_id", document.id).neq("status", "signed");
-      if (!count) await admin.from("ink_documents").update({ status: "completed", completed_at: new Date().toISOString() }).eq("id", document.id);
+      await admin.from("il_signatures").insert({ party_id: party.id, version_id: version.id, adopted_name: adoptedName, signature_method: requestedMethod, signature_data: signatureData, signature_font: requestedMethod === "typed" ? signatureFont : null, applied_fields: appliedFields, consent_text: consentText, document_hash: version.content_hash, ip_hash: await hash(ip), user_agent: agent });
+      await admin.from("il_parties").update({ signed_at: new Date().toISOString(), status: "signed" }).eq("id", party.id);
+      await admin.from("il_audit_events").insert({ document_id: document.id, party_id: party.id, event_type: "document.signed", metadata: { documentHash: version.content_hash, method: requestedMethod } });
+      const { count } = await admin.from("il_parties").select("id", { head: true, count: "exact" }).eq("document_id", document.id).neq("status", "signed");
+      if (!count) await admin.from("il_documents").update({ status: "completed", completed_at: new Date().toISOString() }).eq("id", document.id);
       return json(request, { signed: true });
     }
     return json(request, { error: "Unknown action" }, 400);

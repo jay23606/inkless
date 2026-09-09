@@ -61,9 +61,9 @@ export async function uploadOriginal(file) {
   if (!user) throw new Error("Sign in before uploading a document.");
   const safeName = file.name.replace(/[^a-zA-Z0-9._-]+/g, "-");
   const path = `${user.id}/${crypto.randomUUID()}-${safeName}`;
-  const { error } = await supabase.storage.from("ink-documents").upload(path, file, { upsert: false });
+  const { error } = await supabase.storage.from("il-documents").upload(path, file, { upsert: false });
   if (error) throw error;
-  const { data, error: signedError } = await supabase.storage.from("ink-documents").createSignedUrl(path, 300);
+  const { data, error: signedError } = await supabase.storage.from("il-documents").createSignedUrl(path, 300);
   if (signedError) throw signedError;
   const digest = await crypto.subtle.digest("SHA-256", await file.arrayBuffer());
   const sha256 = [...new Uint8Array(digest)].map(byte => byte.toString(16).padStart(2, "0")).join("");
@@ -74,7 +74,7 @@ export async function saveProfile(profile) {
   if (!configured) return saveDemoProfile(profile);
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("Sign in is required.");
-  const { error } = await supabase.from("ink_profiles").upsert({
+  const { error } = await supabase.from("il_profiles").upsert({
     id: user.id, full_name: profile.name, email: profile.email,
     signature_method: profile.signatureMethod || "font",
     signature_font: profile.signatureFont || "newsreader",

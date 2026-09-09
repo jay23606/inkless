@@ -366,9 +366,14 @@ import { clearDemoDocuments, demoDocuments, demoProfile, invokeFunction, invokeP
     for (const invite of invitations) {
       const row = document.createElement("div"); row.className = "invite-link";
       const label = document.createElement("span"); label.textContent = `${invite.email} · ${invite.url}`;
+      const actions = document.createElement("div"); actions.className = "invite-actions";
+      const email = document.createElement("a"); email.className = "invite-email"; email.textContent = "Email";
+      const subject = `Signature requested: ${$("#documentTitle").value || "Agreement"}`;
+      const body = `Hello,\n\nPlease review and sign this agreement using your private link:\n\n${invite.url}\n\nThis link is intended only for you.`;
+      email.href = `mailto:${encodeURIComponent(invite.email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
       const button = document.createElement("button"); button.type = "button"; button.textContent = "Copy";
       button.addEventListener("click", async () => { await navigator.clipboard.writeText(invite.url); toast("Private link copied"); });
-      row.append(label, button); list.append(row);
+      actions.append(email, button); row.append(label, actions); list.append(row);
     }
     $("#linksDialog").showModal();
   }

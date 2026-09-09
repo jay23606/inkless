@@ -30,7 +30,7 @@ test("database enables RLS on every application table", async () => {
   const files = await read("supabase/migrations/20260909001000_document_files.sql");
   const hardening = await read("supabase/migrations/20260909003000_hardening.sql");
   const sql = `${initial}\n${files}\n${hardening}`;
-  const tables = [...sql.matchAll(/create table public\.(ink_\w+)/g)].map(match => match[1]);
+  const tables = [...sql.matchAll(/create table public\.(il_\w+)/g)].map(match => match[1]);
   assert.ok(tables.length >= 7);
   for (const table of tables) assert.match(sql, new RegExp(`alter table public\\.${table} enable row level security`));
 });
@@ -94,7 +94,7 @@ test("browser clients cannot mutate sent envelopes", async () => {
   assert.match(sql, /documents_owner_update_draft/);
   assert.match(sql, /status='draft'/);
   assert.match(sql, /parties_owner_delete_draft/);
-  assert.match(sql, /ink_profile_signature_size/);
+  assert.match(sql, /il_profile_signature_size/);
   assert.doesNotMatch(sql, /for all/);
 });
 
@@ -133,4 +133,15 @@ test("AI drafts can use multiple private example documents", async () => {
   assert.match(ai, /body\.references/);
   assert.match(ai, /type: "input_file"/);
   assert.match(ai, /attached examples only as drafting references/);
+});
+
+test("email remains required while invitations support per-signer mailto fallback", async () => {
+  const html = await read("index.html");
+  const app = await read("app.js");
+  const envelope = await read("supabase/functions/ink-envelope/index.ts");
+  assert.match(html, /class="person-email" type="email"/);
+  assert.match(app, /mailto:/);
+  assert.match(app, /encodeURIComponent\(invite\.email\)/);
+  assert.match(envelope, /randomToken\(\)/);
+  assert.match(envelope, /invite_token_hash/);
 });

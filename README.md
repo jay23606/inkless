@@ -25,6 +25,7 @@ The project follows OpenStart's client/backend boundary:
 - The browser owns presentation and reversible draft state.
 - Supabase Auth identifies senders and returning signers.
 - PostgreSQL owns durable documents, contacts, parties, versions, fields, signatures, and audit events.
+- Every Inkless database object uses the `il_` prefix so it can safely share the existing Supabase project with other applications.
 - Private Supabase Storage holds uploaded originals and temporary AI references.
 - Edge Functions own OpenAI and email provider calls, invitation tokens, field validation, content hashing, and signing mutations.
 
@@ -76,7 +77,7 @@ The unconfigured app allows UI exploration, document selection and ordering, pro
    supabase secrets set RESEND_FROM_EMAIL="Inkless <sign@your-domain.com>"
    ```
 
-   If email delivery is unavailable, Inkless provides private invitation links for the sender to copy.
+   If automatic delivery is unavailable, Inkless creates a separate private link for every signer and provides both a prepared `mailto:` action and a copy button. One link is never shared among multiple signers because each token identifies a specific signing party.
 
 6. Add both URLs to the Supabase Auth redirect allow-list:
 
@@ -103,7 +104,7 @@ Uploaded or referenced document contents are treated as untrusted source materia
 - Every application table has Row Level Security enabled.
 - Uploaded originals are stored in a private bucket beneath the owner's user ID.
 - Reference files use short-lived signed URLs when supplied to OpenAI.
-- Multi-file packet order is persisted in `ink_document_files`.
+- Multi-file packet order is persisted in `il_document_files`.
 - Original-file SHA-256 hashes are included in the frozen envelope manifest.
 - Raw invitation tokens are delivered to recipients; only their SHA-256 hashes are stored. Tokens expire after 14 days and are placed in URL fragments rather than query strings.
 - Sending freezes an immutable version and stores a SHA-256 hash of its title, sanitized HTML, attachment manifest, and field plan.
