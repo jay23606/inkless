@@ -97,3 +97,16 @@ test("browser clients cannot mutate sent envelopes", async () => {
   assert.match(sql, /ink_profile_signature_size/);
   assert.doesNotMatch(sql, /for all/);
 });
+
+test("AI proposes fields and the server applies them deterministically", async () => {
+  const app = await read("app.js");
+  const ai = await read("supabase/functions/ink-ai-document/index.ts");
+  const envelope = await read("supabase/functions/ink-envelope/index.ts");
+  const sql = await read("supabase/migrations/20260909005000_automatic_fields.sql");
+  assert.match(ai, /"signature","initials","date","full_name"/);
+  assert.match(app, /renderAutomaticFields/);
+  assert.match(app, /action, \.\.\.payload/);
+  assert.match(envelope, /field_plan: fieldPlan/);
+  assert.match(envelope, /appliedFields/);
+  assert.match(sql, /field_plan jsonb/);
+});

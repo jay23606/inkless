@@ -31,10 +31,19 @@ Deno.serve(async (request) => {
       if (!title || !html || !parties.length) throw new Error("Document and signers are required");
       const sourceFiles = Array.isArray(body.sourceFiles) ? body.sourceFiles.slice(0, 30) : [];
       const attachmentManifest = sourceFiles.map((file: Record<string, unknown>, index: number) => ({ filename: clean(file.filename, 300), path: clean(file.path, 1_000), mimeType: clean(file.mimeType, 200), size: Number(file.size) || 0, sha256: clean(file.sha256, 64), order: index + 1 }));
-      const contentHash = await hash(`${title}\n${html}\n${JSON.stringify(attachmentManifest)}`);
+      const rawFields = Array.isArray(body.fields) ? body.fields.slice(0, 200) : [];
+      const fieldPlan = rawFields.map((field: Record<string, unknown>) => ({
+        type: ["signature","initials","date","full_name"].includes(String(field.type)) ? String(field.type) : "signature",
+        partyIndex: Math.max(0, Math.min(parties.length - 1, Math.trunc(Number(field.partyIndex) || 0))),
+        anchorText: clean(field.anchorText, 200), placement: field.placement === "before" ? "before" : "after",
+        page: Math.max(0, Math.trunc(Number(field.page) || 0)),
+        x: Math.max(0, Math.min(1, Number(field.x) || 0)), y: Math.max(0, Math.min(1, Number(field.y) || 0)),
+        width: Math.max(0, Math.min(1, Number(field.width) || 0)), height: Math.max(0, Math.min(1, Number(field.height) || 0)),
+      }));
+      const contentHash = await hash(`${title}\n${html}\n${JSON.stringify(attachmentManifest)}\n${JSON.stringify(fieldPlan)}`);
       const { data: document, error: docError } = await admin.from("ink_documents").insert({ owner_id: user.id, title, status: "sent", sent_at: new Date().toISOString() }).select().single();
       if (docError) throw docError;
-      const { data: version, error: versionError } = await admin.from("ink_document_versions").insert({ document_id: document.id, version: 1, title, body_html: html, content_hash: contentHash, frozen_at: new Date().toISOString() }).select().single();
+      const { data: version, error: versionError } = await admin.from("ink_document_versions").insert({ document_id: document.id, version: 1, title, body_html: html, field_plan: fieldPlan, content_hash: contentHash, frozen_at: new Date().toISOString() }).select().single();
       if (versionError) throw versionError;
       if (attachmentManifest.length) {
         const rows = attachmentManifest.map(file => {
@@ -88,7 +97,9 @@ Deno.serve(async (request) => {
           if (urlError) throw urlError;
           return { filename: file.filename, mimeType: file.mime_type, size: file.byte_size, sha256: file.sha256, order: file.packet_order, url: data.signedUrl };
         }));
-        return json(request, { title: version.title, html: version.body_html, signerName: party.full_name, status: party.status, savedSignature, files });
+        const partyIndex = Math.max(0, Number(party.signing_order) - 1);
+        const fields = Array.isArray(version.field_plan) ? version.field_plan.filter((field: any) => field.partyIndex === partyIndex) : [];
+        return json(request, { title: version.title, html: version.body_html, signerName: party.full_name, status: party.status, savedSignature, files, fields });
       }
       if (party.signed_at) return json(request, { error: "This document has already been signed" }, 409);
       const adoptedName = clean(body.adoptedName, 120);
@@ -100,7 +111,10 @@ Deno.serve(async (request) => {
       const consentText = "I agree to use electronic records and adopt the displayed signature for this document.";
       const agent = clean(request.headers.get("user-agent"), 500);
       const ip = request.headers.get("x-forwarded-for")?.split(",").pop()?.trim() || "unknown";
-      await admin.from("ink_signatures").insert({ party_id: party.id, version_id: version.id, adopted_name: adoptedName, signature_method: requestedMethod, signature_data: signatureData, signature_font: requestedMethod === "typed" ? signatureFont : null, consent_text: consentText, document_hash: version.content_hash, ip_hash: await hash(ip), user_agent: agent });
+      const partyIndex = Math.max(0, Number(party.signing_order) - 1);
+      const initials = adoptedName.split(/\s+/).filter(Boolean).map((part: string) => part[0]).join("").toUpperCase().slice(0, 8);
+      const appliedFields = (Array.isArray(version.field_plan) ? version.field_plan : []).filter((field: any) => field.partyIndex === partyIndex).map((field: any) => ({ ...field, value: field.type === "signature" ? signatureData : field.type === "initials" ? initials : field.type === "date" ? new Date().toISOString().slice(0, 10) : adoptedName }));
+      await admin.from("ink_signatures").insert({ party_id: party.id, version_id: version.id, adopted_name: adoptedName, signature_method: requestedMethod, signature_data: signatureData, signature_font: requestedMethod === "typed" ? signatureFont : null, applied_fields: appliedFields, consent_text: consentText, document_hash: version.content_hash, ip_hash: await hash(ip), user_agent: agent });
       await admin.from("ink_parties").update({ signed_at: new Date().toISOString(), status: "signed" }).eq("id", party.id);
       await admin.from("ink_audit_events").insert({ document_id: document.id, party_id: party.id, event_type: "document.signed", metadata: { documentHash: version.content_hash, method: requestedMethod } });
       const { count } = await admin.from("ink_parties").select("id", { head: true, count: "exact" }).eq("document_id", document.id).neq("status", "signed");

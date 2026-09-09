@@ -118,6 +118,8 @@ textarea:focus, input:focus { border-color: #729b87; box-shadow: 0 0 0 3px rgba(
 .original-files h2 { margin: 0; }
 .original-files p, .original-files li { font-size: 11px; }
 .original-files a { color: var(--green); }
+.auto-field { display: inline-block; margin: 7px 7px 7px 0; padding: 7px 10px; border: 1px dashed #549074; border-radius: 6px; color: var(--green); background: #edf7f0; font: 600 10px "DM Sans",sans-serif; text-transform: capitalize; }
+.auto-fill-summary { margin-top: 35px; padding: 13px 16px; border-left: 3px solid var(--green); background: #f2f7f3; }
 .people-panel { padding: 30px 24px; border-left: 1px solid var(--line); background: rgba(255,255,255,.55); }
 .panel-title { display: flex; justify-content: space-between; align-items: start; }
 .panel-title h2 { font-size: 24px; margin: 0; }

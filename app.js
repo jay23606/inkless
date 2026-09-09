@@ -16,7 +16,8 @@ import { clearDemoDocuments, demoDocuments, demoProfile, invokeFunction, invokeP
     profileSignatureMode: "font",
     signSignatureMode: "font",
     signingToken: "",
-    sessionEmail: ""
+    sessionEmail: "",
+    fields: []
   };
   const agreementTemplates = [
     { category: "Confidentiality", id: "mutual-nda", name: "Mutual NDA", prompt: "A mutual non-disclosure agreement between [PARTY ONE] and [PARTY TWO] for discussing [PURPOSE]. Both parties may disclose confidential information. The confidentiality period is [NUMBER] years, with customary exclusions and return-or-destruction terms. Governing law: [STATE/COUNTRY]." },
@@ -146,6 +147,33 @@ import { clearDemoDocuments, demoDocuments, demoProfile, invokeFunction, invokeP
   function updateSignReady() {
     $("#completeSignature").disabled = !$("#signConsent").checked || !$("#signerName").value.trim();
   }
+  function documentHtmlWithoutFieldMarkers() {
+    const copy = $("#documentPaper").cloneNode(true);
+    $$(".auto-field", copy).forEach(marker => marker.remove());
+    return copy.innerHTML;
+  }
+  function fallbackFields() {
+    const anchors = $$("p,h2,li", $("#documentPaper"));
+    const anchorText = (anchors.at(-1)?.textContent || $("#documentPaper").textContent || "Agreement").trim().slice(0, 90);
+    const needsInitials = /\binitials?\b/i.test($("#documentPaper").textContent);
+    return people().filter(person => person.name && person.email).flatMap((person, partyIndex) => [
+      { type: "full_name", partyIndex, anchorText, placement: "after", page: 0, x: 0, y: 0, width: 0, height: 0 },
+      { type: "signature", partyIndex, anchorText, placement: "after", page: 0, x: 0, y: 0, width: 0, height: 0 },
+      { type: "date", partyIndex, anchorText, placement: "after", page: 0, x: 0, y: 0, width: 0, height: 0 },
+      ...(needsInitials ? [{ type: "initials", partyIndex, anchorText, placement: "after", page: 0, x: 0, y: 0, width: 0, height: 0 }] : []),
+    ]);
+  }
+  function renderAutomaticFields(fields) {
+    $$(".auto-field", $("#documentPaper")).forEach(marker => marker.remove());
+    const nodes = $$("p,h1,h2,li", $("#documentPaper"));
+    for (const field of fields) {
+      const party = people()[field.partyIndex]; if (!party) continue;
+      const anchor = nodes.find(node => field.anchorText && node.textContent.includes(field.anchorText)) || nodes.at(-1) || $("#documentPaper");
+      const marker = document.createElement("span"); marker.className = `auto-field auto-field-${field.type}`; marker.contentEditable = "false";
+      marker.textContent = `${field.type.replace("_", " ")} · ${party.name}`;
+      field.placement === "before" ? anchor.before(marker) : anchor.after(marker);
+    }
+  }
   function updatePeopleCount() { $("#peopleCount").textContent = $$(".person-row", $("#peopleList")).length; }
   function people() {
     return $$(".person-row", $("#peopleList")).map(row => ({ name: $(".person-name", row).value.trim(), email: $(".person-email", row).value.trim() }));
@@ -175,6 +203,7 @@ import { clearDemoDocuments, demoDocuments, demoProfile, invokeFunction, invokeP
       if (!draft) draft = defaultDraft(intent);
       $("#documentTitle").value = draft.title;
       $("#documentPaper").innerHTML = draft.html;
+      state.fields = Array.isArray(draft.fields) ? draft.fields : [];
       state.originalHtml = draft.html;
       $("#peopleList").innerHTML = ""; addPerson(state.profile);
       showEditor(); toast(configured ? "Draft created" : "Demo draft created");
@@ -187,7 +216,7 @@ import { clearDemoDocuments, demoDocuments, demoProfile, invokeFunction, invokeP
     const button = $("#reviseButton"); button.disabled = true; button.textContent = "Revising…";
     try {
       let result = await invokeAI("revise", { title: $("#documentTitle").value, html: $("#documentPaper").innerHTML, instruction, parties: people() });
-      if (result) { $("#documentTitle").value = result.title; $("#documentPaper").innerHTML = result.html; }
+      if (result) { $("#documentTitle").value = result.title; $("#documentPaper").innerHTML = result.html; state.fields = Array.isArray(result.fields) ? result.fields : []; }
       else {
         const note = document.createElement("p"); note.innerHTML = `<mark>Revision ${++state.revision} guidance:</mark> ${escapeHtml(instruction)}`; $("#documentPaper").append(note);
       }
@@ -266,17 +295,24 @@ import { clearDemoDocuments, demoDocuments, demoProfile, invokeFunction, invokeP
     } catch (error) { toast(error.message || "Could not prepare that document."); }
     finally { button.disabled = false; button.innerHTML = 'Prepare for signing <span>→</span>'; }
   }
-  function openReview() {
+  async function openReview() {
     const valid = people().filter(p => p.name && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(p.email));
     if (!valid.length) { toast("Add at least one signer with a valid email."); return; }
-    $("#reviewSummary").innerHTML = `<p><strong>${escapeHtml($("#documentTitle").value)}</strong></p><p>${valid.length} signer${valid.length === 1 ? "" : "s"}: ${valid.map(p => escapeHtml(p.name)).join(", ")}</p><p>Once frozen, edits require a new version.</p>`;
+    const reviewButton = $("#reviewButton"); reviewButton.disabled = true; reviewButton.textContent = "Placing fields…";
+    try {
+      const result = await invokeAI("place", { title: $("#documentTitle").value, html: documentHtmlWithoutFieldMarkers(), parties: valid });
+      state.fields = result?.fields?.length ? result.fields : fallbackFields();
+    } catch { state.fields = fallbackFields(); toast("Used safe automatic field placement."); }
+    renderAutomaticFields(state.fields);
+    reviewButton.disabled = false; reviewButton.textContent = $("#onlyMe").checked ? "Review & sign →" : "Review & send →";
+    $("#reviewSummary").innerHTML = `<p><strong>${escapeHtml($("#documentTitle").value)}</strong></p><p>${valid.length} signer${valid.length === 1 ? "" : "s"}: ${valid.map(p => escapeHtml(p.name)).join(", ")}</p><p>${state.fields.length} signature, initials, name, and date fields placed automatically.</p><p>Once frozen, edits require a new version.</p>`;
     $("#reviewConfirm").checked = false; $("#sendButton").disabled = true; $("#reviewDialog").showModal();
   }
   async function sendDocument() {
     const doc = { title: $("#documentTitle").value || "Untitled agreement", people: people().filter(p => p.name).map(p => p.name).join(", "), date: new Date().toLocaleDateString(), status: configured ? "SENT" : "DEMO · READY" };
     try {
       let envelope = null;
-      if (configured) envelope = await invokeFunction("ink-envelope", { action: "send", title: doc.title, html: $("#documentPaper").innerHTML, parties: people(), sourceFiles: state.sourceFiles });
+      if (configured) envelope = await invokeFunction("ink-envelope", { action: "send", title: doc.title, html: documentHtmlWithoutFieldMarkers(), parties: people(), sourceFiles: state.sourceFiles, fields: state.fields });
       state.documents.unshift(doc); saveDemoDocuments(state.documents); renderRecent(); $("#reviewDialog").close(); showHome(); toast(configured ? "Invitations created" : "Saved locally in demo mode");
       if (configured && envelope?.invitations?.some(invite => !invite.emailSent)) showInvitationLinks(envelope.invitations.filter(invite => !invite.emailSent));
       if (configured && $("#onlyMe").checked && envelope?.invitations?.[0]?.url) location.href = envelope.invitations[0].url;
@@ -303,6 +339,7 @@ import { clearDemoDocuments, demoDocuments, demoProfile, invokeFunction, invokeP
         const originals = result.files.map((file, index) => `<li><a href="${file.url}" target="_blank" rel="noopener">${index + 1}. ${escapeHtml(file.filename)}</a> <small>SHA-256 ${escapeHtml(file.sha256.slice(0, 12))}…</small></li>`).join("");
         $("#signPaper").insertAdjacentHTML("afterbegin", `<section class="original-files"><h2>Original files</h2><p>These originals are part of the frozen signing packet.</p><ol>${originals}</ol></section>`);
       }
+      if (result.fields?.length) $("#signPaper").insertAdjacentHTML("beforeend", `<section class="auto-fill-summary"><h2>Automatic fields</h2><p>Your signature, initials, full name, and signing date will be applied to ${result.fields.length} assigned field${result.fields.length === 1 ? "" : "s"} when you approve below.</p></section>`);
       if (result.savedSignature) {
         const saved = result.savedSignature;
         $("#signSignatureFont").value = saved.signature_font || "newsreader"; applySignatureFont("sign", $("#signSignatureFont").value);
