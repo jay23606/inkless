@@ -63,7 +63,8 @@
         </div>
         <div class="composer-footer">
           <span>AI drafts are a starting point. Review before sending.</span>
-          <button id="createDraft" class="primary" type="button">Create draft <span>→</span></button>
+          <div id="aiStatus" class="ai-status" role="status">Checking AI drafting…</div>
+          <button id="createDraft" class="primary" type="button" disabled>Checking AI…</button>
         </div>
       </section>
 
@@ -205,6 +206,6 @@
   </template>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
-  <script type="module" src="app.js?v=30f2ada"></script>
+  <script type="module" src="app.js?v=bb96c81"></script>
 </body>
 </html>

@@ -53,6 +53,9 @@ textarea:focus, input:focus { border-color: #729b87; box-shadow: 0 0 0 3px rgba(
 .suggestions button { background: var(--wash); border: 1px solid var(--line); border-radius: 99px; padding: 6px 11px; cursor: pointer; color: #52605a; font-size: 12px; }
 .composer-footer { border-top: 1px solid var(--line); min-height: 70px; display: flex; align-items: center; justify-content: space-between; gap: 20px; }
 .composer-footer > span { color: var(--muted); font-size: 12px; }
+.ai-status { margin-left: auto; color: var(--muted); font-size: 12px; }
+.ai-status.ready { color: var(--green); }
+.ai-status.unavailable { color: #8b5a42; }
 .primary { border: 0; color: white; background: var(--green); border-radius: 9px; padding: 11px 16px; font-weight: 600; cursor: pointer; }
 .primary:hover { background: var(--green-dark); }
 .primary:disabled { opacity: .45; cursor: not-allowed; }

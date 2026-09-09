@@ -110,3 +110,14 @@ test("AI proposes fields and the server applies them deterministically", async (
   assert.match(envelope, /appliedFields/);
   assert.match(sql, /field_plan jsonb/);
 });
+
+test("drafting is gated on server-side OpenAI readiness with no generic fallback", async () => {
+  const html = await read("index.html");
+  const app = await read("app.js");
+  const ai = await read("supabase/functions/ink-ai-document/index.ts");
+  assert.match(html, /id="aiStatus"/);
+  assert.match(app, /invokeAI\("status"/);
+  assert.match(app, /if \(!state\.aiReady\)/);
+  assert.doesNotMatch(app, /function defaultDraft/);
+  assert.match(ai, /body\.action === "status"/);
+});

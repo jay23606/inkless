@@ -17,6 +17,7 @@ import { clearDemoDocuments, demoDocuments, demoProfile, invokeFunction, invokeP
     signSignatureMode: "font",
     signingToken: "",
     sessionEmail: "",
+    aiReady: false,
     fields: []
   };
   const agreementTemplates = [
@@ -184,31 +185,45 @@ import { clearDemoDocuments, demoDocuments, demoProfile, invokeFunction, invokeP
     list.innerHTML = state.documents.map((doc, i) => `<div class="recent-row" data-index="${i}"><div><strong>${escapeHtml(doc.title)}</strong><span>${escapeHtml(doc.people || "No recipients")} · ${escapeHtml(doc.date)}</span></div><em>${escapeHtml(doc.status)}</em></div>`).join("");
   }
   function escapeHtml(value) { return safeHtml(value); }
-  function defaultDraft(intent) {
-    const nda = /nda|non.?disclosure|confidential/i.test(intent);
-    const service = /service|contractor|freelance|design|project/i.test(intent);
-    if (service) return { title: "Independent Contractor Agreement", html: `<h1>Independent Contractor Agreement</h1><p class="lede">This Agreement begins on <mark>the date of the final signature</mark> between the parties identified below.</p><h2>1. Services</h2><p>The Contractor will provide the services described by the parties for the agreed project. Any material change to scope, timing, or deliverables must be agreed in writing.</p><h2>2. Payment</h2><p>The Client will pay the agreed fixed price upon completion and acceptance of the work. Invoices are due within 14 days.</p><h2>3. Ownership</h2><p>Upon full payment, the Client owns the final deliverables. The Contractor retains ownership of pre-existing tools and reusable materials.</p><h2>4. Independent relationship</h2><p>The Contractor is an independent contractor and not an employee or agent of the Client.</p>` };
-    if (nda) return { title: "Mutual Non-Disclosure Agreement", html: `<h1>Mutual Non-Disclosure Agreement</h1><p class="lede">This Mutual Non-Disclosure Agreement (“Agreement”) is entered into as of <mark>the date of the final signature</mark>.</p><h2>1. Purpose</h2><p>The parties wish to explore a possible business relationship. Either party may share information that should remain confidential.</p><h2>2. Confidential information</h2><p>“Confidential Information” means non-public business, technical, financial, or product information disclosed for the parties’ stated purpose.</p><h2>3. Responsibilities</h2><p>Each receiving party will use reasonable care to protect Confidential Information, use it only for the stated purpose, and share it only with people bound by similar duties.</p><h2>4. Term</h2><p>These confidentiality obligations continue for two years from each disclosure.</p>` };
-    return { title: "Agreement", html: `<h1>Agreement</h1><p class="lede">This Agreement is effective on <mark>the date of the final signature</mark>.</p><h2>1. Understanding</h2><p>${escapeHtml(intent)}</p><h2>2. Responsibilities</h2><p>Each party agrees to act in good faith and complete the responsibilities described in this Agreement.</p><h2>3. Changes</h2><p>Changes must be recorded in writing and approved by all parties.</p><h2>4. Entire agreement</h2><p>This document reflects the parties’ complete understanding concerning its subject.</p>` };
-  }
   async function invokeAI(action, payload) {
     return invokeFunction("ink-ai-document", { action, ...payload });
+  }
+  async function refreshAIStatus(hasSession = Boolean(state.sessionEmail)) {
+    const status = $("#aiStatus"), button = $("#createDraft");
+    state.aiReady = false; button.disabled = true;
+    if (!configured) {
+      status.textContent = "AI drafting needs Supabase configuration.";
+      status.className = "ai-status unavailable"; button.textContent = "AI setup required"; return;
+    }
+    if (!hasSession) {
+      status.textContent = "Sign in to use private AI drafting.";
+      status.className = "ai-status unavailable"; button.textContent = "Sign in to draft"; return;
+    }
+    status.textContent = "Checking OpenAI connection…"; status.className = "ai-status"; button.textContent = "Checking AI…";
+    try {
+      await invokeAI("status", {});
+      state.aiReady = true; status.textContent = "AI drafting is ready."; status.className = "ai-status ready";
+      button.disabled = false; button.innerHTML = 'Create draft <span>→</span>';
+    } catch (error) {
+      status.textContent = error.message || "OpenAI drafting is unavailable.";
+      status.className = "ai-status unavailable"; button.textContent = "AI unavailable";
+    }
   }
   async function createDraft() {
     const intent = $("#intent").value.trim();
     if (intent.length < 12) { toast("Describe the agreement in a little more detail."); return; }
+    if (!state.aiReady) { toast("AI drafting must be connected before creating a draft."); return; }
     const button = $("#createDraft"); button.disabled = true; button.textContent = "Drafting…";
     try {
-      let draft = await invokeAI("draft", { intent, parties: [state.profile] });
-      if (!draft) draft = defaultDraft(intent);
+      const draft = await invokeAI("draft", { intent, parties: [state.profile] });
       $("#documentTitle").value = draft.title;
       $("#documentPaper").innerHTML = draft.html;
       state.fields = Array.isArray(draft.fields) ? draft.fields : [];
       state.originalHtml = draft.html;
       $("#peopleList").innerHTML = ""; addPerson(state.profile);
-      showEditor(); toast(configured ? "Draft created" : "Demo draft created");
+      showEditor(); toast("AI draft created");
     } catch (error) { toast(error.message || "Could not create the draft."); }
-    finally { button.disabled = false; button.innerHTML = 'Create draft <span>→</span>'; }
+    finally { button.disabled = !state.aiReady; button.innerHTML = 'Create draft <span>→</span>'; }
   }
   async function reviseDraft() {
     const instruction = $("#revisionPrompt").value.trim();
@@ -366,6 +381,7 @@ import { clearDemoDocuments, demoDocuments, demoProfile, invokeFunction, invokeP
   async function refreshAuth() {
     if (!configured) {
       $("#authStatus").textContent = "Demo mode · configure Supabase to enable login and AI.";
+      await refreshAIStatus(false);
       return;
     }
     const { data: { session } } = await supabase.auth.getSession();
@@ -375,6 +391,7 @@ import { clearDemoDocuments, demoDocuments, demoProfile, invokeFunction, invokeP
     $("#authStatus").textContent = session ? `Signed in as ${session.user.email}` : "Not signed in";
     if (session?.user?.email) { $("#profileEmail").value = session.user.email; $("#profileEmail").readOnly = true; }
     else $("#profileEmail").readOnly = false;
+    await refreshAIStatus(Boolean(session));
   }
   async function sendSignInLink() {
     const email = $("#authEmail").value.trim();

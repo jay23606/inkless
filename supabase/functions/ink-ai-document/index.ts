@@ -30,7 +30,7 @@ const schema = {
   required: ["title", "html", "summary", "warnings", "fields"],
 };
 
-const allowedActions = new Set(["draft", "revise", "extract", "place"]);
+const allowedActions = new Set(["status", "draft", "revise", "extract", "place"]);
 const text = (value: unknown, max: number) => String(value || "").trim().slice(0, max);
 
 function cleanDocumentHtml(value: unknown) {
@@ -51,6 +51,7 @@ Deno.serve(async (request) => {
     if (!apiKey) return json(request, { error: "OpenAI is not configured" }, 503);
     const body = await request.json();
     if (!allowedActions.has(body.action)) return json(request, { error: "Unknown action" }, 400);
+    if (body.action === "status") return json(request, { configured: true });
 
     const parties = Array.isArray(body.parties)
       ? body.parties.slice(0, 20).map((p: Record<string, unknown>) => ({ name: text(p.name, 120), email: text(p.email, 254) }))
