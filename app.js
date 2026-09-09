@@ -202,13 +202,30 @@ import { clearDemoDocuments, demoDocuments, demoProfile, invokeFunction, invokeP
     }
     status.textContent = "Checking OpenAI connection…"; status.className = "ai-status"; button.textContent = "Checking AI…";
     try {
-      await invokeAI("status", {});
+      const readiness = await invokeAI("status", {});
       state.aiReady = true; status.textContent = "AI drafting is ready."; status.className = "ai-status ready";
+      $("#openAIKeyStatus").textContent = readiness.source === "user" ? `Personal key saved · ends in ${readiness.lastFour}` : "Workspace OpenAI key is active.";
+      $("#removeOpenAIKey").classList.toggle("hidden", readiness.source !== "user");
       button.disabled = false; button.innerHTML = 'Create draft <span>→</span>';
     } catch (error) {
       status.textContent = error.message || "OpenAI drafting is unavailable.";
       status.className = "ai-status unavailable"; button.textContent = "AI unavailable";
     }
+  }
+  async function saveOpenAIKey() {
+    const input = $("#openAIKey"), button = $("#saveOpenAIKey"), apiKey = input.value.trim();
+    if (apiKey.length < 20) return toast("Enter a complete OpenAI API key.");
+    button.disabled = true; button.textContent = "Testing…";
+    try {
+      const result = await invokeAI("save_key", { apiKey });
+      input.value = ""; $("#openAIKeyStatus").textContent = `Personal key saved · ends in ${result.lastFour}`;
+      toast("OpenAI key tested and saved"); await refreshAIStatus(true);
+    } catch (error) { toast(error.message || "Could not save that OpenAI key."); }
+    finally { button.disabled = false; button.textContent = "Save & test key"; }
+  }
+  async function removeOpenAIKey() {
+    try { await invokeAI("delete_key", {}); $("#openAIKey").value = ""; toast("OpenAI key removed"); await refreshAIStatus(true); }
+    catch (error) { toast(error.message || "Could not remove the OpenAI key."); }
   }
   async function createDraft() {
     const intent = $("#intent").value.trim();
@@ -419,7 +436,7 @@ import { clearDemoDocuments, demoDocuments, demoProfile, invokeFunction, invokeP
     }
     const { data: { session } } = await supabase.auth.getSession();
     state.sessionEmail = session?.user?.email || "";
-    $("#authPanel").classList.toggle("hidden", Boolean(session)); $("#onlyMeOption").classList.toggle("hidden", !session);
+    $("#authPanel").classList.toggle("hidden", Boolean(session)); $("#onlyMeOption").classList.toggle("hidden", !session); $("#openAISettings").classList.toggle("hidden", !session);
     $("#signOutButton").classList.toggle("hidden", !session);
     $("#authStatus").textContent = session ? `Signed in as ${session.user.email}` : "Not signed in";
     if (session?.user?.email) { $("#profileEmail").value = session.user.email; $("#profileEmail").readOnly = true; }
@@ -452,6 +469,7 @@ import { clearDemoDocuments, demoDocuments, demoProfile, invokeFunction, invokeP
   $("#onlyMe").addEventListener("change", event => setOnlyMe(event.target.checked));
   $("#profileButton").addEventListener("click", () => $("#profileDialog").showModal()); $("#saveProfile").addEventListener("click", saveProfile);
   $("#signInButton").addEventListener("click", sendSignInLink);
+  $("#saveOpenAIKey").addEventListener("click", saveOpenAIKey); $("#removeOpenAIKey").addEventListener("click", removeOpenAIKey);
   $("#signOutButton").addEventListener("click", async () => { await supabase.auth.signOut(); await refreshAuth(); toast("Signed out"); });
   $("#fileInput").addEventListener("change", e => chooseFiles(e.target.files)); $("#dropzone").addEventListener("click", () => $("#fileInput").click());
   ["dragenter", "dragover"].forEach(type => $("#dropzone").addEventListener(type, e => { e.preventDefault(); $("#dropzone").classList.add("dragging"); }));

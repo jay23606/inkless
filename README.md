@@ -61,10 +61,10 @@ The unconfigured app allows UI exploration, document selection and ordering, pro
    supabase functions deploy ink-envelope
    ```
 
-4. Configure server-side secrets. Never place these in `config.js`, browser storage, committed files, or GitHub Pages settings exposed to the frontend:
+4. Configure the credential-encryption secret. Never place it in `config.js`, browser storage, committed files, or GitHub Pages settings exposed to the frontend:
 
    ```bash
-   supabase secrets set OPENAI_API_KEY=sk-...
+   supabase secrets set IL_CREDENTIALS_KEY=YOUR_32_BYTE_BASE64_SECRET
    supabase secrets set OPENAI_MODEL=gpt-5.5
    supabase secrets set ALLOWED_ORIGINS="http://localhost:8000,https://jay23606.github.io"
    supabase secrets set APP_ORIGIN="https://jay23606.github.io/inkless"
@@ -84,7 +84,7 @@ The unconfigured app allows UI exploration, document selection and ordering, pro
    - `http://localhost:8000`
    - `https://jay23606.github.io/inkless/`
 
-After sign-in, the frontend calls the AI function's readiness endpoint. Drafting is enabled only when the Edge Function confirms that `OPENAI_API_KEY` exists.
+After sign-in, open the profile and enter a personal OpenAI API key. Inkless validates the key, encrypts it with AES-GCM, and stores only ciphertext, an IV, and the last four characters in `il_openai_credentials`. The plaintext key is used only inside the AI Edge Function and is never returned to the browser. A deployment-wide `OPENAI_API_KEY` remains an optional fallback.
 
 ## AI document flow
 

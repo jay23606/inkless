@@ -178,6 +178,13 @@
         <div id="profileTypePanel"><select id="profileSignatureFont" aria-label="Signature font"><option value="newsreader">Classic script</option><option value="cursive">Casual cursive</option><option value="serif">Formal serif</option><option value="sans">Clean handwritten</option></select><div class="signature-preview signature-newsreader" id="signaturePreview">Nimol</div></div>
         <div id="profileDrawPanel" class="hidden"><canvas id="profileSignatureCanvas" class="signature-canvas" width="430" height="130" aria-label="Draw your signature"></canvas><button id="clearProfileSignature" class="clear-signature" type="button">Clear drawing</button></div>
       </fieldset>
+      <fieldset id="openAISettings" class="signature-setup provider-settings hidden">
+        <legend>OpenAI connection</legend>
+        <p id="openAIKeyStatus" class="fine-print">No key saved.</p>
+        <label>API key<input id="openAIKey" type="password" autocomplete="off" placeholder="sk-…" spellcheck="false"></label>
+        <div class="provider-actions"><button id="saveOpenAIKey" class="secondary" type="button">Save & test key</button><button id="removeOpenAIKey" class="text-button" type="button">Remove key</button></div>
+        <p class="fine-print">Encrypted before storage. The saved key is never displayed again.</p>
+      </fieldset>
       <p class="fine-print">Your signature is applied only when you explicitly approve a document.</p>
       <button id="saveProfile" class="primary full" value="default">Save profile</button>
       <button id="signOutButton" class="text-button hidden" type="button">Sign out</button>
@@ -212,6 +219,6 @@
   </template>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
-  <script type="module" src="app.js?v=72c5e90"></script>
+  <script type="module" src="app.js?v=6f837ae"></script>
 </body>
 </html>

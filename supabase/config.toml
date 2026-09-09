@@ -1,4 +1,4 @@
-project_id = "inkless"
+project_id = "zbtgonklxweikgukzukg"
 
 [functions.ink-ai-document]
 verify_jwt = false

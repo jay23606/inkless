@@ -1,4 +1,4 @@
-import { corsHeaders, json, requiredUser } from "../_shared/common.ts";
+import { adminClient, corsHeaders, json, requiredUser } from "../_shared/common.ts";
 
 const schema = {
   type: "object",
@@ -30,8 +30,42 @@ const schema = {
   required: ["title", "html", "summary", "warnings", "fields"],
 };
 
-const allowedActions = new Set(["status", "draft", "revise", "extract", "place"]);
+const allowedActions = new Set(["status", "save_key", "delete_key", "draft", "revise", "extract", "place"]);
 const text = (value: unknown, max: number) => String(value || "").trim().slice(0, max);
+const bytesToBase64 = (bytes: Uint8Array) => btoa(String.fromCharCode(...bytes));
+const base64ToBytes = (value: string) => Uint8Array.from(atob(value), character => character.charCodeAt(0));
+
+async function encryptionKey() {
+  const encoded = Deno.env.get("IL_CREDENTIALS_KEY");
+  if (!encoded) throw new Error("Inkless credential encryption is not configured");
+  const raw = base64ToBytes(encoded);
+  if (raw.byteLength !== 32) throw new Error("Inkless credential encryption key is invalid");
+  return crypto.subtle.importKey("raw", raw, "AES-GCM", false, ["encrypt", "decrypt"]);
+}
+
+async function encryptCredential(value: string) {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const encrypted = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, await encryptionKey(), new TextEncoder().encode(value));
+  return { ciphertext: bytesToBase64(new Uint8Array(encrypted)), iv: bytesToBase64(iv) };
+}
+
+async function decryptCredential(ciphertext: string, iv: string) {
+  const decrypted = await crypto.subtle.decrypt({ name: "AES-GCM", iv: base64ToBytes(iv) }, await encryptionKey(), base64ToBytes(ciphertext));
+  return new TextDecoder().decode(decrypted);
+}
+
+async function savedCredential(userId: string) {
+  const { data, error } = await adminClient().from("il_openai_credentials").select("key_ciphertext,key_iv,key_last_four").eq("user_id", userId).maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+async function resolveApiKey(userId: string) {
+  const saved = await savedCredential(userId);
+  if (saved) return { apiKey: await decryptCredential(saved.key_ciphertext, saved.key_iv), source: "user", lastFour: saved.key_last_four };
+  const apiKey = Deno.env.get("OPENAI_API_KEY");
+  return apiKey ? { apiKey, source: "workspace", lastFour: apiKey.slice(-4) } : null;
+}
 
 function cleanDocumentHtml(value: unknown) {
   let html = text(value, 100_000);
@@ -47,11 +81,28 @@ Deno.serve(async (request) => {
   const user = await requiredUser(request);
   if (!user) return json(request, { error: "Sign in is required" }, 401);
   try {
-    const apiKey = Deno.env.get("OPENAI_API_KEY");
-    if (!apiKey) return json(request, { error: "OpenAI is not configured" }, 503);
     const body = await request.json();
     if (!allowedActions.has(body.action)) return json(request, { error: "Unknown action" }, 400);
-    if (body.action === "status") return json(request, { configured: true });
+    if (body.action === "save_key") {
+      const candidate = text(body.apiKey, 300);
+      if (candidate.length < 20) return json(request, { error: "Enter a complete OpenAI API key" }, 400);
+      const validation = await fetch("https://api.openai.com/v1/models", { headers: { Authorization: `Bearer ${candidate}` } });
+      if (!validation.ok) return json(request, { error: "OpenAI rejected that API key" }, 400);
+      const encrypted = await encryptCredential(candidate);
+      const lastFour = candidate.slice(-4);
+      const { error } = await adminClient().from("il_openai_credentials").upsert({ user_id: user.id, key_ciphertext: encrypted.ciphertext, key_iv: encrypted.iv, key_last_four: lastFour, updated_at: new Date().toISOString() });
+      if (error) throw error;
+      return json(request, { saved: true, lastFour });
+    }
+    if (body.action === "delete_key") {
+      const { error } = await adminClient().from("il_openai_credentials").delete().eq("user_id", user.id);
+      if (error) throw error;
+      return json(request, { deleted: true });
+    }
+    const credential = await resolveApiKey(user.id);
+    if (!credential) return json(request, { error: "Add your OpenAI API key in your profile" }, 503);
+    if (body.action === "status") return json(request, { configured: true, source: credential.source, lastFour: credential.lastFour });
+    const apiKey = credential.apiKey;
 
     const parties = Array.isArray(body.parties)
       ? body.parties.slice(0, 20).map((p: Record<string, unknown>) => ({ name: text(p.name, 120), email: text(p.email, 254) }))

@@ -145,3 +145,16 @@ test("email remains required while invitations support per-signer mailto fallbac
   assert.match(envelope, /randomToken\(\)/);
   assert.match(envelope, /invite_token_hash/);
 });
+
+test("personal OpenAI keys are managed server-side and encrypted", async () => {
+  const html = await read("index.html");
+  const app = await read("app.js");
+  const ai = await read("supabase/functions/ink-ai-document/index.ts");
+  const sql = await read("supabase/migrations/20260909006000_openai_credentials.sql");
+  assert.match(html, /id="openAIKey" type="password"/);
+  assert.match(app, /invokeAI\("save_key"/);
+  assert.match(ai, /AES-GCM/);
+  assert.match(ai, /il_openai_credentials/);
+  assert.match(sql, /enable row level security/);
+  assert.doesNotMatch(sql, /create policy/);
+});
